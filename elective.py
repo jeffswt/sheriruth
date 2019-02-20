@@ -129,7 +129,7 @@ class UserSession:
         return result
 
     def parse_level_1_page(self, page):
-        return []
+        return self.parse_level_0_page(page)
 
     def parse_level_2_page(self, page):
         return []
@@ -176,8 +176,12 @@ class TestElectiveMethods(unittest.TestCase):
             f.close()
         # Prepare to download page
         if False:
-            p = s.get_page({'method': 'listKclb'})
-            open('a.html', 'w', encoding='utf-8').write(p)
+            ls = {'method': 'listKclb'}
+            ls = {'method': 'listJxb', 'kclb': 24}
+            p = s.get_page(ls)
+            f = open('a.html', 'w', encoding='utf-8')
+            f.write(p)
+            f.close()
         else:
             f = open('a.html', 'r', encoding='utf-8')
             pg = f.read()
