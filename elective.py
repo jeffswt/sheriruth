@@ -1,7 +1,9 @@
 
 import base64
+import bs4
 import json
 import pickle
+import re
 import requests
 import time
 import unittest
@@ -108,7 +110,23 @@ class UserSession:
         return False
 
     def parse_level_0_page(self, page):
-        return []
+        dom = bs4.BeautifulSoup(page, 'html5lib')
+        table = dom.find(id='tb')
+        tbody = table.find('tbody')
+        tr_s = tbody.find_all('tr')[2:]
+        result = {}
+        for tr in tr_s:
+            td = tr.find_all('td')[0]
+            a = td.find('a')
+            title = a.text.lstrip().rstrip()
+            href = re.sub(r'[ \t\r\n]', r'', a['href'])
+            _1, _2, _3, query, _5 = urllib.parse.urlsplit(href)
+            query = urllib.parse.parse_qs(query)
+            query.pop('isNeedInitSQL')
+            for i in query:
+                query[i] = query[i][0]
+            result[title] = query
+        return result
 
     def parse_level_1_page(self, page):
         return []
@@ -134,7 +152,7 @@ class UserSession:
 
 
 class TestElectiveMethods(unittest.TestCase):
-    def download_page(self):
+    def test_download(self):
         # Read username, password and cookies from tokens.json
         f = open('tokens.json', 'r', encoding='utf-8')
         j = json.loads(f.read())
@@ -157,11 +175,14 @@ class TestElectiveMethods(unittest.TestCase):
             f.write(j)
             f.close()
         # Prepare to download page
-        p = s.get_page({'method': 'listKclb'})
-        open('a.html', 'w', encoding='utf-8').write(p)
-
-    def test_parser(self):
-        return
+        if False:
+            p = s.get_page({'method': 'listKclb'})
+            open('a.html', 'w', encoding='utf-8').write(p)
+        else:
+            f = open('a.html', 'r', encoding='utf-8')
+            pg = f.read()
+            f.close()
+            print(s.parse_level_0_page(pg))
     pass
 
 unittest.main()
