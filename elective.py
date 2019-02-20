@@ -14,7 +14,7 @@ import urllib.parse
 class ElectiveClass:
     def __init__(self):
         self.class_name = '复变函数（退学班）'  # 教学班名称
-        self.class_id = ''
+        self.class_id = ''  # Class ID
         self.selected = False  # 已选
         self.wish = False  # 志愿
         self.course_name = '复变函数'  # 课程名称
@@ -28,17 +28,20 @@ class ElectiveClass:
         self.at_nanme = (7, 8)  # 上课信息：第x节
         self.at_loc = '明学楼,M108'  # 上课信息：地点
         self.teacher = '裴礼文'  # 主讲教师
-        self.teacher_id = ''
+        self.teacher_id = ''  # Teacher ID
         self.test_mode = '考试'  # 考核方式
         self.filter_mode = '靠运气'  # 筛选方式
         self.foreign = False  # 外语限修课
+        self.query_params = {}  # Params required to query class list
+        self.update_time = 0  # Time updated
         return
 
     def __repr__(self):
         ls = ['class_name', 'class_id', 'selected', 'wish', 'course_name',
               'course_type', 'credits', 'cnt_expected', 'cnt_selected',
               'cnt_chosen', 'at_nansyuu', 'at_nanyoubi', 'at_nanme', 'at_loc',
-              'teacher', 'teacher_id', 'test_mode', 'filter_mode', 'foreign']
+              'teacher', 'teacher_id', 'test_mode', 'filter_mode', 'foreign',
+              'query_params', 'update_time']
         p = ', '.join('%s=%s' % (i, repr(getattr(self, i))) for i in ls)
         return 'ElectiveClass(%s)' % p
     pass
@@ -176,6 +179,7 @@ class UserSession:
             c.class_id = td[17].text.strip()
             c.foreign = True if len(td[18].text.strip()) > 0 else False
             c.teacher_id = td[21].text.strip()
+            c.update_time = time.time()
             result.append(c)
         return result
 
