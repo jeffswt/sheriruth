@@ -1,18 +1,34 @@
 
 import json
 import requests
+import unittest
 
 
 class WebSession:
     def __init__(self):
-        self.cookies_jar = requests.cookies.RequestsCookieJar()
+        self.cookies = requests.cookies.RequestsCookieJar()
+        self.user_agent = (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+            'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+            'Chrome/72.0.3626.109 Safari/537.36')
         return
 
+    def __do(self, func, url, kwargs):
+        r = func(
+            url,
+            cookies=self.cookies,
+            headers={
+                'User-Agent': self.user_agent,
+            },
+            **kwargs)
+        self.cookies = r.cookies
+        return r
+
     def get(self, url, **kwargs):
-        return requests.get(url, cookies=self.cookies_jar, **kwargs)
+        return self.__do(requests.get, url, kwargs)
 
     def post(self, url, **kwargs):
-        return requests.post(url, cookies=self.cookies_jar, **kwargs)
+        return self.__do(requests.post, url, kwargs)
     pass
 
 
@@ -30,10 +46,35 @@ class UserSession:
             "username": "ruc:%s" % self.username,
             "password": "%s" % self.password,
             "remember_me": "false",
-            "redirect_uri": "https%3A%2F%2Fv.ruc.edu.cn%2Foauth2%2Fauthorize",
+            "redirect_uri": "",
             "twofactor_password": "",
             "twofactor_recovery": ""
         }
-        r = self.session.get(url, data=json.dumps(payload))
-        return r.text
+        old_cookies = self.session.cookies
+        r = self.session.post(
+            url,
+            data=json.dumps(payload),
+            allow_redirects=False)
+        fail_marker = '{"error":"'
+        if len(old_cookies) != len(self.session.cookies):
+            return True
+        if r.text.startswith(fail_marker):
+            return False
+        return False
     pass
+
+
+class TestElectiveMethods(unittest.TestCase):
+    def test_default(self):
+        # Read username and password from tokens.json
+        f = open('tokens.json', 'r', encoding='utf-8')
+        j = json.loads(f.read())
+        f.close()
+        username = j['username']
+        password = j['password']
+        s = UserSession(username, password)
+        d = s.login()
+        print(d)
+    pass
+
+unittest.main()
