@@ -1,4 +1,5 @@
 bs4
+openpyxl
 requests
 unittest
 urllib

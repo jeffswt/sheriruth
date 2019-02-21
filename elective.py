@@ -2,6 +2,7 @@
 import base64
 import bs4
 import json
+import openpyxl
 import pickle
 import re
 import requests
@@ -93,10 +94,26 @@ class ClassDatabase:
             raise KeyError(class_id)
         return self.array[self.index[class_id]]
 
-    def load(self, fileobj):
+    def load(self, filename):
         return
 
-    def save(self, fileobj):
+    def save(self, filename):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        thead = list(i[1] for i in self.patterns)
+        ws.append(thead)
+        for cls in self.array:
+            row = []
+            for attr in self.patterns:
+                val = getattr(cls, attr[0])
+                rule = attr[2]
+                if type(rule) == str:
+                    val = rule % val
+                else:
+                    val = rule(val)
+                row.append(val)
+            ws.append(row)
+        wb.save(filename)
         return
     pass
 
@@ -213,10 +230,10 @@ class UserSession:
             c.wish = True if len(td[2].text.strip()) > 0 else False
             c.course_name = td[3].find('a').text.strip()
             c.course_type = td[4].text.strip()
-            c.credits = td[5].text.strip()
-            c.cnt_expected = td[6].text.strip()
-            c.cnt_selected = td[7].text.strip()
-            c.cnt_chosen = td[8].text.strip()
+            c.credits = int(td[5].text.strip())
+            c.cnt_expected = int(td[6].text.strip())
+            c.cnt_selected = int(td[7].text.strip())
+            c.cnt_chosen = int(td[8].text.strip())
             at_time = td[9].find_all('div')[1].text.strip()
             at_time = re.sub(r'[\t\r\n]', r'', at_time).split(' 　')
             c.at_nansyuu = tuple(map(
@@ -227,7 +244,7 @@ class UserSession:
                 _2['一二三四五六日'[_3]] = _3 + 1
             c.at_nanyoubi = _2[_]
             c.at_nanme = tuple(map(
-                re.findall(r'第0*(\d+)～0*(\d+)节', at_time[1])[0]))
+                int, re.findall(r'第0*(\d+)～0*(\d+)节', at_time[1])[0]))
             c.at_loc = at_time[2]
             c.teacher = td[11].find('a').text.strip()
             c.test_mode = td[12].text.strip() or '-'
@@ -310,18 +327,24 @@ class TestElectiveMethods(unittest.TestCase):
         # Prepare to download page
         if False:
             ls = {'method': 'listKclb'}  # Get level 0
-            # ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
-            # ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
+            ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
+            ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
             p = s.get_page(ls)
-            f = open('a.html', 'w', encoding='utf-8')
+            f = open('c.html', 'w', encoding='utf-8')
             f.write(p)
             f.close()
         else:
-            f = open('a.html', 'r', encoding='utf-8')
-            pg = f.read()
-            f.close()
-            level, data = s.parse_page(pg)
-            print(data)
+            db = ClassDatabase()
+            db.load('t.xlsx')
+            # f = open('c.html', 'r', encoding='utf-8')
+            # pg = f.read()
+            # f.close()
+            # level, data = s.parse_page(pg)
+            # db = ClassDatabase()
+            # for cls in data:
+            #     db.add(cls)
+            # db.save('t.xlsx')
+            # print(data)
             # l = s.parse_level_2_page(pg)
             # for _ in l:
             #     print(_)
