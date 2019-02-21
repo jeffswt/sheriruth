@@ -319,7 +319,7 @@ class UserSession:
 
     def get_data_recursive(self, db, params):
         level, data = self.get_page(params, parse=True)
-        if level == 0 or level == 0:
+        if level == 0 or level == 1:
             for title in data:
                 print('Entering menu "%s".' % title)
                 self.get_data_recursive(db, data[title])
@@ -358,32 +358,10 @@ class TestElectiveMethods(unittest.TestCase):
             f.write(j)
             f.close()
         # Prepare to download page
-        if True:
-            # ls = {'method': 'listKclb'}  # Get level 0
-            # ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
-            # ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
-            # p = s.get_page(ls)
-            # f = open('c.html', 'w', encoding='utf-8')
-            # f.write(p)
-            # f.close()
-            db = ClassDatabase()
-            s.get_data(db)
-            db.save('t.xlsx')
-        else:
-            db = ClassDatabase()
-            db.load('t.xlsx')
-            # f = open('c.html', 'r', encoding='utf-8')
-            # pg = f.read()
-            # f.close()
-            # level, data = s.parse_page(pg)
-            # db = ClassDatabase()
-            # for clz in data:
-            #     db.add(clz)
-            # db.save('t.xlsx')
-            # print(data)
-            # l = s.parse_level_2_page(pg)
-            # for _ in l:
-            #     print(_)
+        db = ClassDatabase()
+        # db.load('t.xlsx')
+        s.get_data(db)
+        db.save('t.xlsx')
     pass
 
 unittest.main()
