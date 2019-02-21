@@ -81,12 +81,12 @@ class ClassDatabase:
         ]
         return
 
-    def add(self, cls):
-        if cls.class_id in self.index:
-            self.array[self.index[cls.class_id]] = cls
+    def add(self, clz):
+        if clz.class_id in self.index:
+            self.array[self.index[clz.class_id]] = clz
         else:
-            self.array.append(cls)
-            self.index[cls.class_id] = len(self.array) - 1
+            self.array.append(clz)
+            self.index[clz.class_id] = len(self.array) - 1
         return
 
     def get(self, class_id):
@@ -95,6 +95,20 @@ class ClassDatabase:
         return self.array[self.index[class_id]]
 
     def load(self, filename):
+        wb = openpyxl.load_workbook(filename)
+        ws = wb.active
+        first_row = True
+        for row in ws.rows:
+            if first_row:
+                first_row = False
+                continue
+            # Is data row, do not skip
+            td = list(str(i.value) for i in row)
+            clz = ElectiveClass()
+            for i in range(0, len(self.patterns)):
+                val = self.patterns[i][3](td[i])
+                setattr(clz, self.patterns[i][0], val)
+            self.add(clz)
         return
 
     def save(self, filename):
@@ -102,10 +116,10 @@ class ClassDatabase:
         ws = wb.active
         thead = list(i[1] for i in self.patterns)
         ws.append(thead)
-        for cls in self.array:
+        for clz in self.array:
             row = []
             for attr in self.patterns:
-                val = getattr(cls, attr[0])
+                val = getattr(clz, attr[0])
                 rule = attr[2]
                 if type(rule) == str:
                     val = rule % val
@@ -341,8 +355,8 @@ class TestElectiveMethods(unittest.TestCase):
             # f.close()
             # level, data = s.parse_page(pg)
             # db = ClassDatabase()
-            # for cls in data:
-            #     db.add(cls)
+            # for clz in data:
+            #     db.add(clz)
             # db.save('t.xlsx')
             # print(data)
             # l = s.parse_level_2_page(pg)
