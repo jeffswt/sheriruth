@@ -165,13 +165,15 @@ class UserSession:
             c.cnt_chosen = td[8].text.strip()
             at_time = td[9].find_all('div')[1].text.strip()
             at_time = re.sub(r'[\t\r\n]', r'', at_time).split(' 　')
-            c.at_nansyuu = re.findall(r'第0*(\d+)～0*(\d+)周', at_time[0])[0]
+            c.at_nansyuu = tuple(map(
+                int, re.findall(r'第0*(\d+)～0*(\d+)周', at_time[0])[0]))
             _ = re.findall(r'星期(.)', at_time[1])[0]
             _2 = {}
             for _3 in range(0, 7):
                 _2['一二三四五六日'[_3]] = _3 + 1
             c.at_nanyoubi = _2[_]
-            c.at_nanme = re.findall(r'第0*(\d+)～0*(\d+)节', at_time[1])[0]
+            c.at_nanme = tuple(map(
+                re.findall(r'第0*(\d+)～0*(\d+)节', at_time[1])[0]))
             c.at_loc = at_time[2]
             c.teacher = td[11].find('a').text.strip()
             c.test_mode = td[12].text.strip() or '-'
@@ -183,7 +185,32 @@ class UserSession:
             result.append(c)
         return result
 
-    def get_page(self, params):
+    def detect_page_level(self, page):
+        dom = bs4.BeautifulSoup(page, 'html5lib')
+        table = dom.find(id='tb')
+        tbody = table.find('tbody')
+        th = tbody.find_all('tr')[0].find_all('th')
+        if len(th) == 5:
+            return 0
+        if len(th) == 1:
+            return 1
+        if len(th) > 10:  # == 15
+            return 2
+        # Unknown type
+        return 3
+
+    def parse_page(self, page):
+        """Parse page, returns page level and parsed data."""
+        level = self.detect_page_level(page)
+        result = [
+            self.parse_level_0_page,
+            self.parse_level_1_page,
+            self.parse_level_2_page,
+            lambda _: _,
+        ][level](page)
+        return level, result
+
+    def get_page(self, params, parse=False):
         scheme = 'http'
         netloc = 'app.ruc.edu.cn'
         path = '/idc/education/selectcourses/studentselectcourse/'\
@@ -197,6 +224,8 @@ class UserSession:
         fragment = ''
         url = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
         r = self.session.get(url)
+        if parse:
+            return self.parse_page(r.text)
         return r.text
     pass
 
@@ -227,8 +256,8 @@ class TestElectiveMethods(unittest.TestCase):
         # Prepare to download page
         if False:
             ls = {'method': 'listKclb'}  # Get level 0
-            ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
-            ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
+            # ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
+            # ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
             p = s.get_page(ls)
             f = open('a.html', 'w', encoding='utf-8')
             f.write(p)
@@ -237,9 +266,11 @@ class TestElectiveMethods(unittest.TestCase):
             f = open('a.html', 'r', encoding='utf-8')
             pg = f.read()
             f.close()
-            l = s.parse_level_2_page(pg)
-            for _ in l:
-                print(_)
+            level, data = s.parse_page(pg)
+            print(data)
+            # l = s.parse_level_2_page(pg)
+            # for _ in l:
+            #     print(_)
     pass
 
 unittest.main()
