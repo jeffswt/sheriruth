@@ -47,6 +47,60 @@ class ElectiveClass:
     pass
 
 
+class ClassDatabase:
+    """CSV database manager."""
+    def __init__(self):
+        self.array = []
+        self.index = {}
+        self.patterns = [
+            ('class_name', '教学班名称', '%s', str),
+            ('class_id', '教学班ID', '%s', str),
+            ('selected', '已选', '%d', bool),
+            ('wish', '志愿', '%d', bool),
+            ('course_name', '课程名称', '%s', str),
+            ('course_type', '课程类别', '%s', str),
+            ('credits', '学分', '%d', int),
+            ('cnt_expected', '修读人数', '%d', int),
+            ('cnt_selected', '选上人数', '%d', int),
+            ('cnt_chosen', '已选人数', '%d', int),
+            ('at_nansyuu', '上课周次', '(%d, %d)', lambda _:
+                tuple(map(int, re.findall(r'\((\d+), (\d+)\)', _)[0]))),
+            ('at_nanyoubi', '上课曜日', '%d', int),
+            ('at_nanme', '上课节次', '(%d, %d)', lambda _:
+                tuple(map(int, re.findall(r'\((\d+), (\d+)\)', _)[0]))),
+            ('at_loc', '上课地点', '%s', str),
+            ('teacher', '主讲教师', '%s', str),
+            ('teacher_id', '教师ID', '%s', str),
+            ('test_mode', '考核方式', '%s', str),
+            ('filter_mode', '筛选方式', '%s', str),
+            ('foreign', '外语限修课', '%d', bool),
+            ('query_params', '查询参数', lambda _: json.dumps(_), lambda _:
+                json.loads(_)),
+            ('update_time', '更新时间', '%f', float),
+        ]
+        return
+
+    def add(self, cls):
+        if cls.class_id in self.index:
+            self.array[self.index[cls.class_id]] = cls
+        else:
+            self.array.append(cls)
+            self.index[cls.class_id] = len(self.array) - 1
+        return
+
+    def get(self, class_id):
+        if class_id not in self.index:
+            raise KeyError(class_id)
+        return self.array[self.index[class_id]]
+
+    def load(self, fileobj):
+        return
+
+    def save(self, fileobj):
+        return
+    pass
+
+
 class WebSession:
     def __init__(self):
         self.cookies = requests.cookies.RequestsCookieJar()
