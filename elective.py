@@ -157,7 +157,6 @@ class WebSession:
         t = time.time()
         if t < self.last_request_time + self.request_delay:
             time.sleep(self.last_request_time + self.request_delay - t)
-            self.last_request_time = t
         # Request
         r = func(
             url,
@@ -166,8 +165,9 @@ class WebSession:
                 'User-Agent': self.user_agent,
             },
             **kwargs)
+        self.last_request_time = time.time()
         # Update cookies jar
-        self.cookies = r.cookies
+        self.cookies.update(r.cookies)
         return r
 
     def get(self, url, **kwargs):
@@ -310,8 +310,27 @@ class UserSession:
         url = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
         r = self.session.get(url)
         if parse:
-            return self.parse_page(r.text)
+            try:
+                return self.parse_page(r.text)
+            except Exception as err:
+                print(r.text)
+                raise Exception()
         return r.text
+
+    def get_data_recursive(self, db, params):
+        level, data = self.get_page(params, parse=True)
+        if level == 0 or level == 0:
+            for title in data:
+                print('Entering menu "%s".' % title)
+                self.get_data_recursive(db, data[title])
+        elif level == 2:
+            for clz in data:
+                clz.query_params = params
+                db.add(clz)
+        return
+
+    def get_data(self, db):
+        return self.get_data_recursive(db, {'method': 'listKclb'})
     pass
 
 
@@ -339,14 +358,17 @@ class TestElectiveMethods(unittest.TestCase):
             f.write(j)
             f.close()
         # Prepare to download page
-        if False:
-            ls = {'method': 'listKclb'}  # Get level 0
-            ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
-            ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
-            p = s.get_page(ls)
-            f = open('c.html', 'w', encoding='utf-8')
-            f.write(p)
-            f.close()
+        if True:
+            # ls = {'method': 'listKclb'}  # Get level 0
+            # ls = {'method': 'listJxb', 'kclb': '24'}  # Get level 1
+            # ls = {'method': 'listJxb', 'kclb': '02'}  # Get level 2
+            # p = s.get_page(ls)
+            # f = open('c.html', 'w', encoding='utf-8')
+            # f.write(p)
+            # f.close()
+            db = ClassDatabase()
+            s.get_data(db)
+            db.save('t.xlsx')
         else:
             db = ClassDatabase()
             db.load('t.xlsx')
