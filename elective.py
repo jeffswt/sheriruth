@@ -518,12 +518,6 @@ def classes_monitor(token_filename, db_filename):
 class TestElectiveMethods(unittest.TestCase):
     def test_download(self):
         classes_monitor('tokens.json', 't.xlsx')
-        return
-        # Prepare to download page
-        db = ClassDatabase()
-        # db.load('t.xlsx')
-        s.get_data(db)
-        db.save('t.xlsx')
     pass
 
 unittest.main()
