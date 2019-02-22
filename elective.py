@@ -350,6 +350,33 @@ class UserSession:
     pass
 
 
+def login_json(filename):
+    """Login from token (json) data, returns session and wished class ids."""
+    f = open(filename, 'r', encoding='utf-8')
+    j = json.loads(f.read())
+    f.close()
+    username = j['username']
+    password = j['password']
+    cookies = j['cookies']
+    update_classes = j['select']
+    s = UserSession(username, password)
+    # Lazy load cookie data
+    if cookies != "":
+        s.session.load_cookies(cookies)
+    else:
+        d = s.login()
+        f = open('tokens.json', 'w', encoding='utf-8')
+        j = json.dumps({
+            'username': username,
+            'password': password,
+            'cookies': s.session.dump_cookies(),
+            'select': update_classes
+        }, indent=4)
+        f.write(j)
+        f.close()
+    return s, update_classes
+
+
 class TestElectiveMethods(unittest.TestCase):
     def test_download(self):
         # Prepare to download page
