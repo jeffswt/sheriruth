@@ -3,6 +3,7 @@ import base64
 import bs4
 import json
 import openpyxl
+import os
 import pickle
 import re
 import requests
@@ -130,6 +131,38 @@ class ClassDatabase:
         wb.save(filename)
         return
     pass
+
+
+class InteractiveLogger:
+    def __init__(self):
+        self.log = []
+        return
+
+    def clear_screen(self):
+        os.system('cls')
+        return
+
+    def add(self, data):
+        n = 79 - 16
+        lines = [data[i:i+n] for i in range(0, len(data), n)]
+        tm = time.time()
+        _, _, _, h, m, s, _, _, _ = tuple(time.localtime(tm))
+        tms = ' [%.2d:%.2d:%.2d.%.3d] ' % (h, m, s, (tm - int(tm)) * 1000)
+        lines[0] = tms + lines[0]
+        for i in range(1, len(lines)):
+            lines[i] = ' ' * 16 + lines[i]
+        for line in lines[::-1]:
+            self.log.append(line)
+        return
+
+    def output(self, cnt):
+        lines = self.log[-cnt:][::-1]
+        for line in lines:
+            print(line)
+        return
+    pass
+
+logger = InteractiveLogger()
 
 
 class WebSession:
@@ -362,10 +395,15 @@ def login_json(filename):
     s = UserSession(username, password)
     # Lazy load cookie data
     if cookies != "":
+        logger.add('以前のトークンを見つけ、それを再利用しました。')
         s.session.load_cookies(cookies)
+        logger.add('トークンのロードが完成しました。')
     else:
-        d = s.login()
-        f = open('tokens.json', 'w', encoding='utf-8')
+        logger.add('トークンが見つかりません、ログインしています')
+        if not s.login():
+            logger.add('登録に失敗しました、再試行不可能です。')
+            return None, []
+        f = open(filename, 'w', encoding='utf-8')
         j = json.dumps({
             'username': username,
             'password': password,
@@ -374,11 +412,46 @@ def login_json(filename):
         }, indent=4)
         f.write(j)
         f.close()
+    logger.add('登録に成功しました。')
     return s, update_classes
+
+
+def classes_monitor(token_filename, db_filename):
+    logger.add('インターフェースがロード中...')
+    session, clz_list = login_json(token_filename)
+    logger.add('データベースがロード中...')
+    db = ClassDatabase()
+    db.load(db_filename)
+    logger.add('データベースのロードが完成しました。')
+    logger.add('インターフェースのロードが完成しました。')
+    classes = {}
+    # Select known classes from db
+    for clz in clz_list:
+        if clz in db.index:
+            classes[clz] = db.get(clz)
+
+    def print_thread(classes):
+        for _ in range(0, 60*3):
+            logger.clear_screen()
+            tm = time.time()
+            for cid in classes:
+                clz = classes[cid]
+                s = (('[OK]' if clz.selected else '....') + ' %s (%d/%d)' %
+                     (clz.class_name, clz.cnt_selected, clz.cnt_expected) +
+                     ' | Updated %.2fs ago' % (tm - clz.update_time))
+                print(s)
+            print('-' * 79)
+            logger.output(15 - len(classes))
+            time.sleep(0.016)
+        return
+    print_thread(classes)
+    return
 
 
 class TestElectiveMethods(unittest.TestCase):
     def test_download(self):
+        classes_monitor('tokens.json', 't.xlsx')
+        return
         # Prepare to download page
         db = ClassDatabase()
         # db.load('t.xlsx')
