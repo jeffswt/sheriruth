@@ -21,8 +21,8 @@ class ElectiveClass:
         self.course_name = '复变函数'  # 课程名称
         self.course_type = '数学'  # 课程类别
         self.credits = 6  # 学分
-        self.cnt_expected = 0  # 修读人数
-        self.cnt_selected = 0  # 选上人数
+        self.cnt_expected = 0  # 修读人数 [*]
+        self.cnt_selected = 0  # 选上人数 [*]
         self.cnt_chosen = 0  # 已选人数
         self.at_nansyuu = (1, 18)  # 上课信息：第x到x周
         self.at_nanyoubi = 2  # 上课信息：星期x
@@ -329,6 +329,22 @@ class UserSession:
                 db.add(clz)
         return
 
+    def update_data(self, classes):
+        methods = set()
+        for clz in classes:
+            methods.add(clz.query_params)
+        for param in methods:
+            level, data = self.get_page(param, parse=True)
+            if level != 2:
+                continue
+            for clz in data:
+                if clz.class_id not in classes:
+                    continue
+                clz.query_params = param
+                classes[clz.class_id] = clz
+            pass
+        return classes
+
     def get_data(self, db):
         return self.get_data_recursive(db, {'method': 'listKclb'})
     pass
@@ -336,27 +352,6 @@ class UserSession:
 
 class TestElectiveMethods(unittest.TestCase):
     def test_download(self):
-        # Read username, password and cookies from tokens.json
-        f = open('tokens.json', 'r', encoding='utf-8')
-        j = json.loads(f.read())
-        f.close()
-        username = j['username']
-        password = j['password']
-        cookies = j['cookies']
-        s = UserSession(username, password)
-        # Lazy load cookie data
-        if cookies != "":
-            s.session.load_cookies(cookies)
-        else:
-            d = s.login()
-            f = open('tokens.json', 'w', encoding='utf-8')
-            j = json.dumps({
-                'username': username,
-                'password': password,
-                'cookies': s.session.dump_cookies()
-            }, indent=4)
-            f.write(j)
-            f.close()
         # Prepare to download page
         db = ClassDatabase()
         # db.load('t.xlsx')
