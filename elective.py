@@ -7,6 +7,7 @@ import os
 import pickle
 import re
 import requests
+import threading
 import time
 import unittest
 import urllib
@@ -217,9 +218,14 @@ class UserSession:
         self.username = username
         self.password = password
         self.session = WebSession()
+        self.login_fail_count = 0
         return
 
     def login(self):
+        if self.login_fail_count > 3:
+            logger.add('登録失敗が多すぎました、続行できません。')
+            time.sleep(1.0)
+            return False
         url = 'https://v.ruc.edu.cn/auth/login'
         payload = {
             "username": "ruc:%s" % self.username,
@@ -235,9 +241,10 @@ class UserSession:
             data=json.dumps(payload),
             allow_redirects=False)
         fail_marker = '{"error":"'
-        if len(old_cookies) != len(self.session.cookies):
+        if len(r.text) == 0:
             return True
         if r.text.startswith(fail_marker):
+            self.login_fail_count += 1
             return False
         return False
 
@@ -342,19 +349,22 @@ class UserSession:
         fragment = ''
         url = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
         r = self.session.get(url)
+        logger.add('「%s」から取得したページ' % json.dumps(params))
         if parse:
             try:
                 return self.parse_page(r.text)
             except Exception as err:
-                print(r.text)
-                raise Exception()
+                if not self.login():
+                    logger.add('レンダー失敗しました。')
+                    raise Exception()
+                return self.get_page(params, parse=parse)
         return r.text
 
     def get_data_recursive(self, db, params):
         level, data = self.get_page(params, parse=True)
         if level == 0 or level == 1:
             for title in data:
-                print('Entering menu "%s".' % title)
+                logger.add('メニュー「%s」に入ります')
                 self.get_data_recursive(db, data[title])
         elif level == 2:
             for clz in data:
@@ -363,10 +373,12 @@ class UserSession:
         return
 
     def update_data(self, classes):
+        logger.add('新しい状態を取得中...')
         methods = set()
-        for clz in classes:
-            methods.add(clz.query_params)
-        for param in methods:
+        for cid in classes:
+            methods.add(json.dumps(classes[cid].query_params))
+        for param_j in methods:
+            param = json.loads(param_j)
             level, data = self.get_page(param, parse=True)
             if level != 2:
                 continue
@@ -376,6 +388,7 @@ class UserSession:
                 clz.query_params = param
                 classes[clz.class_id] = clz
             pass
+        logger.add('新しい状態が取得されました。')
         return classes
 
     def get_data(self, db):
@@ -419,6 +432,8 @@ def login_json(filename):
 def classes_monitor(token_filename, db_filename):
     logger.add('インターフェースがロード中...')
     session, clz_list = login_json(token_filename)
+    if not session:
+        return
     logger.add('データベースがロード中...')
     db = ClassDatabase()
     db.load(db_filename)
@@ -431,7 +446,7 @@ def classes_monitor(token_filename, db_filename):
             classes[clz] = db.get(clz)
 
     def print_thread(classes):
-        for _ in range(0, 60*3):
+        for _ in range(0, 60*20):
             logger.clear_screen()
             tm = time.time()
             for cid in classes:
@@ -444,7 +459,15 @@ def classes_monitor(token_filename, db_filename):
             logger.output(15 - len(classes))
             time.sleep(0.016)
         return
+
+    def update_thread(classes, session):
+        for _ in range(0, 5):
+            session.update_data(classes)
+            time.sleep(2)
+    th = threading.Thread(target=update_thread, args=[classes, session])
+    th.start()
     print_thread(classes)
+    th.join()
     return
 
 
