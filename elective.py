@@ -7,8 +7,10 @@ import os
 import pickle
 import re
 import requests
+import sys
 import threading
 import time
+import traceback
 import unittest
 import urllib
 import urllib.parse
@@ -97,7 +99,7 @@ class ClassDatabase:
         return self.array[self.index[class_id]]
 
     def load(self, filename):
-        wb = openpyxl.load_workbook(filename)
+        wb = openpyxl.load_workbook(filename, read_only=True)
         ws = wb.active
         first_row = True
         for row in ws.rows:
@@ -137,15 +139,24 @@ class ClassDatabase:
 class InteractiveLogger:
     def __init__(self):
         self.log = []
+        self.is_alive = True
         return
 
     def clear_screen(self):
         os.system('cls')
         return
 
+    def alive(self):
+        return self.is_alive
+
+    def kill(self):
+        self.is_alive = False
+        return
+
     def add(self, data):
         n = 79 - 16
-        lines = [data[i:i+n] for i in range(0, len(data), n)]
+        lines = sum([[line[i:i+n] for i in range(0, len(line), n)]
+                     for line in data.split('\n')], [])
         tm = time.time()
         _, _, _, h, m, s, _, _, _ = tuple(time.localtime(tm))
         tms = ' [%.2d:%.2d:%.2d.%.3d] ' % (h, m, s, (tm - int(tm)) * 1000)
@@ -154,6 +165,10 @@ class InteractiveLogger:
             lines[i] = ' ' * 16 + lines[i]
         for line in lines[::-1]:
             self.log.append(line)
+        return
+
+    def traceback(self, exc_info):
+        self.add(''.join(traceback.format_exception(*exc_info)))
         return
 
     def output(self, cnt):
@@ -356,6 +371,7 @@ class UserSession:
             except Exception as err:
                 if not self.login():
                     logger.add('レンダー失敗しました。')
+                    logger.kill()
                     raise Exception()
                 return self.get_page(params, parse=parse)
         return r.text
@@ -445,8 +461,8 @@ def classes_monitor(token_filename, db_filename):
         if clz in db.index:
             classes[clz] = db.get(clz)
 
-    def print_thread(classes):
-        for _ in range(0, 60*20):
+    def print_worker(classes):
+        while logger.alive():
             logger.clear_screen()
             tm = time.time()
             for cid in classes:
@@ -456,18 +472,46 @@ def classes_monitor(token_filename, db_filename):
                      ' | Updated %.2fs ago' % (tm - clz.update_time))
                 print(s)
             print('-' * 79)
-            logger.output(15 - len(classes))
-            time.sleep(0.016)
+            logger.output(18 - len(classes))
+            time.sleep(0.02)
         return
 
-    def update_thread(classes, session):
-        for _ in range(0, 5):
-            session.update_data(classes)
-            time.sleep(2)
-    th = threading.Thread(target=update_thread, args=[classes, session])
-    th.start()
-    print_thread(classes)
-    th.join()
+    def update_worker(classes, session):
+        while logger.alive():
+            time.sleep(2.5)
+            try:
+                session.update_data(classes)
+            except Exception as err:
+                logger.traceback(sys.exc_info())
+        return
+
+    def save_worker(db, db_filename):
+        while logger.alive():
+            time.sleep(4.0)
+            try:
+                db.save(db_filename)
+                logger.add('新しい変更がテーブルに保存されました。')
+            except Exception as err:
+                logger.traceback(sys.exc_info())
+        return
+    # Define threads
+    print_thread = threading.Thread(target=print_worker, args=[classes])
+    update_thread = threading.Thread(target=update_worker,
+                                     args=[classes, session])
+    save_thread = threading.Thread(target=save_worker, args=[db, db_filename])
+    # Start threads
+    print_thread.start()
+    update_thread.start()
+    save_thread.start()
+    # Sleep for a while or listen for keyboard interrupt
+    try:
+        time.sleep(20)
+    except KeyboardInterrupt:
+        logger.kill()
+    # Join threads
+    print_thread.join()
+    update_thread.join()
+    save_thread.join()
     return
 
 
