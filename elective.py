@@ -535,7 +535,7 @@ def classes_monitor(token_filename, db_filename):
                      ' | Updated %.2fs ago' % (tm - clz.update_time))
                 print(s)
             print('-' * 79)
-            logger.output(30 - len(classes))
+            logger.output(19 - 1 - len(classes))
             time.sleep(0.1)
         return
 
