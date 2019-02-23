@@ -17,10 +17,10 @@ import urllib.parse
 
 
 consts = {
-    'version': '[Past] 3',
-    'request-delay': 0.5,
-    'refresh-rate': 2.0,
-    'save-rate': 7.0,
+    'version': '[Present] 7',
+    'request-delay': 0.3,
+    'refresh-rate': 1.8,
+    'save-rate': 6.0,
 }
 
 
@@ -69,8 +69,8 @@ class ClassDatabase:
         self.patterns = [
             ('class_name', '教学班名称', '%s', str),
             ('class_id', '教学班ID', '%s', str),
-            ('selected', '已选', '%d', bool),
-            ('wish', '志愿', '%d', bool),
+            ('selected', '已选', '%d', lambda _: bool(int(_))),
+            ('wish', '志愿', '%d', lambda _: bool(int(_))),
             ('course_name', '课程名称', '%s', str),
             ('course_type', '课程类别', '%s', str),
             ('credits', '学分', '%d', int),
@@ -87,7 +87,7 @@ class ClassDatabase:
             ('teacher_id', '教师ID', '%s', str),
             ('test_mode', '考核方式', '%s', str),
             ('filter_mode', '筛选方式', '%s', str),
-            ('foreign', '外语限修课', '%d', bool),
+            ('foreign', '外语限修课', '%d', lambda _: bool(int(_))),
             ('query_params', '查询参数', lambda _: json.dumps(_), lambda _:
                 json.loads(_)),
             ('post_params', '提交参数', lambda _: json.dumps(_), lambda _:
@@ -463,14 +463,15 @@ class UserSession:
             logger.add('課程「%s」選択中に HTTP 錯誤が発生します。' %
                        r.class_name)
             return False
+        if '选课成功' in r.text:
+            logger.add('課程「%s」の選択が成功しました。' % clz.class_name)
+            r.selected = True
+            return True
         err_cnt = re.findall(r'/idc/images/error/', r.text)
-        if len(err_cnt) >= 8:  # 10 actually
-            logger.add('サーバーは課程「%s」の選択を拒否します。' %
-                       clz.class_name)
-            return False
-        logger.add('課程「%s」の選択が成功しました。' % clz.class_name)
-        r.selected = True
-        return True
+        # if len(err_cnt) >= 8:  # 10 actually
+        logger.add('サーバーは課程「%s」の選択を拒否します。' %
+                   clz.class_name)
+        return False
     pass
 
 
@@ -534,25 +535,34 @@ def classes_monitor(token_filename, db_filename):
                      ' | Updated %.2fs ago' % (tm - clz.update_time))
                 print(s)
             print('-' * 79)
-            logger.output(30 - len(classes))
+            logger.output(19 - 1 - len(classes))
             time.sleep(0.1)
         return
 
     def update_worker(classes, session):
+        has_no_remain_cnt = 0
         while logger.alive():
             try:
                 time.sleep(consts['refresh-rate'])
                 session.update_data(classes)
                 # Check if class available
+                has_remaining = False
                 for cid in classes:
                     clz = classes[cid]
                     if clz.selected:
                         continue
+                    has_remaining = True
                     if clz.cnt_selected >= clz.cnt_chosen:
                         continue
                     logger.add('課程「%s」は選択することが可能である。' %
                                clz.class_name)
                     session.select_class(clz)
+                if not has_remaining:
+                    has_no_remain_cnt += 1
+                if has_no_remain_cnt > 4:
+                    logger.add('全部の目標は達成されました。')
+                    time.sleep(1.0)
+                    logger.kill()
             except Exception as err:
                 logger.traceback(sys.exc_info())
             except BaseException:
