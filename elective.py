@@ -69,8 +69,8 @@ class ClassDatabase:
         self.patterns = [
             ('class_name', '教学班名称', '%s', str),
             ('class_id', '教学班ID', '%s', str),
-            ('selected', '已选', '%d', bool),
-            ('wish', '志愿', '%d', bool),
+            ('selected', '已选', '%d', lambda _: bool(int(_))),
+            ('wish', '志愿', '%d', lambda _: bool(int(_))),
             ('course_name', '课程名称', '%s', str),
             ('course_type', '课程类别', '%s', str),
             ('credits', '学分', '%d', int),
@@ -87,7 +87,7 @@ class ClassDatabase:
             ('teacher_id', '教师ID', '%s', str),
             ('test_mode', '考核方式', '%s', str),
             ('filter_mode', '筛选方式', '%s', str),
-            ('foreign', '外语限修课', '%d', bool),
+            ('foreign', '外语限修课', '%d', lambda _: bool(int(_))),
             ('query_params', '查询参数', lambda _: json.dumps(_), lambda _:
                 json.loads(_)),
             ('post_params', '提交参数', lambda _: json.dumps(_), lambda _:
@@ -470,7 +470,7 @@ class UserSession:
         err_cnt = re.findall(r'/idc/images/error/', r.text)
         # if len(err_cnt) >= 8:  # 10 actually
         logger.add('サーバーは課程「%s」の選択を拒否します。' %
-                    clz.class_name)
+                   clz.class_name)
         return False
     pass
 
