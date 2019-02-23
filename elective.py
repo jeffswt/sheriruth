@@ -584,6 +584,36 @@ def classes_monitor(token_filename, db_filename):
     return
 
 
+def update_class_database(token_filename, db_filename):
+    logger.add('インターフェースがロード中...')
+    session, clz_list = login_json(token_filename)
+    if not session:
+        return
+    logger.add('インターフェースのロードが完成しました。')
+
+    def print_worker():
+        while logger.alive():
+            logger.clear_screen()
+            logger.output(19)
+            time.sleep(0.1)
+        return
+    print_thread = threading.Thread(target=print_worker, args=[])
+    print_thread.start()
+    # Main sequence
+    try:
+        db = ClassDatabase()
+        session.get_data(db)
+        logger.add('課程がテーブルに保存されました。')
+        db.save(db_filename)
+    except KeyboardInterrupt:
+        logger.kill()
+    # Terminate
+    time.sleep(1.0)
+    logger.kill()
+    print_thread.join()
+    return
+
+
 class TestElectiveMethods(unittest.TestCase):
     def test_download(self):
         classes_monitor('tokens.json', 't.xlsx')
