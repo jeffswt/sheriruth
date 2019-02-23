@@ -540,20 +540,29 @@ def classes_monitor(token_filename, db_filename):
         return
 
     def update_worker(classes, session):
+        has_no_remain_cnt = 0
         while logger.alive():
             try:
                 time.sleep(consts['refresh-rate'])
                 session.update_data(classes)
                 # Check if class available
+                has_remaining = False
                 for cid in classes:
                     clz = classes[cid]
                     if clz.selected:
                         continue
+                    has_remaining = True
                     if clz.cnt_selected >= clz.cnt_chosen:
                         continue
                     logger.add('課程「%s」は選択することが可能である。' %
                                clz.class_name)
                     session.select_class(clz)
+                if not has_remaining:
+                    has_no_remain_cnt += 1
+                if has_no_remain_cnt > 4:
+                    logger.add('全部の目標は達成されました。')
+                    time.sleep(1.0)
+                    logger.kill()
             except Exception as err:
                 logger.traceback(sys.exc_info())
             except BaseException:
