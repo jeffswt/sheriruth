@@ -38,6 +38,7 @@ class ElectiveClass:
         self.filter_mode = '靠运气'  # 筛选方式
         self.foreign = False  # 外语限修课
         self.query_params = {}  # Params required to query class list
+        self.post_params = {}  # Params used to select course
         self.update_time = 0  # Time updated
         return
 
@@ -46,7 +47,7 @@ class ElectiveClass:
               'course_type', 'credits', 'cnt_expected', 'cnt_selected',
               'cnt_chosen', 'at_nansyuu', 'at_nanyoubi', 'at_nanme', 'at_loc',
               'teacher', 'teacher_id', 'test_mode', 'filter_mode', 'foreign',
-              'query_params', 'update_time']
+              'query_params', 'post_params', 'update_time']
         p = ', '.join('%s=%s' % (i, repr(getattr(self, i))) for i in ls)
         return 'ElectiveClass(%s)' % p
     pass
@@ -80,6 +81,8 @@ class ClassDatabase:
             ('filter_mode', '筛选方式', '%s', str),
             ('foreign', '外语限修课', '%d', bool),
             ('query_params', '查询参数', lambda _: json.dumps(_), lambda _:
+                json.loads(_)),
+            ('post_params', '提交参数', lambda _: json.dumps(_), lambda _:
                 json.loads(_)),
             ('update_time', '更新时间', '%f', float),
         ]
@@ -131,7 +134,13 @@ class ClassDatabase:
                     val = rule(val)
                 row.append(val)
             ws.append(row)
-        wb.save(filename)
+        while True:
+            try:
+                wb.save(filename)
+            except Exception:
+                time.sleep(0.5)
+                logger.add('ファイルの保存に失敗します。')
+            break
         return
     pass
 
@@ -287,6 +296,15 @@ class UserSession:
 
     def parse_level_2_page(self, page):
         dom = bs4.BeautifulSoup(page, 'html5lib')
+        # Parse post params
+        _1 = dom.find('input', id='method')
+        _2 = _1.next_sibling
+        post_params = {}
+        while type(_2) != type(_1) or _2.name != 'table':
+            if _2.name == 'input':
+                post_params[_2['name']] = _2['value']
+            _2 = _2.next_sibling
+        # Parse classes
         table = dom.find(id='tb')
         tbody = table.find('tbody')
         tr_s = tbody.find_all('tr')[2:]
@@ -321,6 +339,7 @@ class UserSession:
             c.class_id = td[17].text.strip()
             c.foreign = True if len(td[18].text.strip()) > 0 else False
             c.teacher_id = td[21].text.strip()
+            c.post_params = dict(post_params)
             c.update_time = time.time()
             result.append(c)
         return result
@@ -339,7 +358,7 @@ class UserSession:
         # Unknown type
         return 3
 
-    def parse_page(self, page):
+    def parse_page(self, params, page):
         """Parse page, returns page level and parsed data."""
         level = self.detect_page_level(page)
         result = [
@@ -348,6 +367,10 @@ class UserSession:
             self.parse_level_2_page,
             lambda _: _,
         ][level](page)
+        # Patch query_params
+        if level == 2:
+            for clz in result:
+                clz.query_params = dict(params)
         return level, result
 
     def get_page(self, params, parse=False):
@@ -367,7 +390,7 @@ class UserSession:
         logger.add('「%s」から取得したページ' % json.dumps(params))
         if parse:
             try:
-                return self.parse_page(r.text)
+                return self.parse_page(params, r.text)
             except Exception as err:
                 if not self.login():
                     logger.add('レンダー失敗しました。')
@@ -380,16 +403,15 @@ class UserSession:
         level, data = self.get_page(params, parse=True)
         if level == 0 or level == 1:
             for title in data:
-                logger.add('メニュー「%s」に入ります')
+                logger.add('メニュー「%s」に入ります' % title)
                 self.get_data_recursive(db, data[title])
         elif level == 2:
             for clz in data:
-                clz.query_params = params
                 db.add(clz)
         return
 
     def update_data(self, classes):
-        logger.add('新しい状態を取得中...')
+        logger.add('新しい課程状態を取得中...')
         methods = set()
         for cid in classes:
             methods.add(json.dumps(classes[cid].query_params))
@@ -401,14 +423,45 @@ class UserSession:
             for clz in data:
                 if clz.class_id not in classes:
                     continue
-                clz.query_params = param
                 classes[clz.class_id] = clz
             pass
-        logger.add('新しい状態が取得されました。')
+        logger.add('新しい課程状態が取得されました。')
         return classes
 
     def get_data(self, db):
         return self.get_data_recursive(db, {'method': 'listKclb'})
+
+    def select_class(self, clz):
+        scheme = 'http'
+        netloc = 'app.ruc.edu.cn'
+        path = '/idc/education/selectcourses/studentselectcourse/'\
+               'StudentSelectCourseAction.do'
+        query = dict(clz.post_params)
+        query.update({
+            'method': 'selectCourses',
+            'wish': '1',
+            'condition_kclb': '',
+            'rowid': clz.class_id,
+            'pageNo': '1',
+            'pageSize': '50',
+        })
+        query = urllib.parse.urlencode(query)
+        fragment = ''
+        url = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
+        r = self.session.post(url)
+        # Process error cases
+        if r.status_code != 200:
+            logger.add('課程「%s」選択中に HTTP 錯誤が発生します。' %
+                       r.class_name)
+            return False
+        err_cnt = re.findall(r'/idc/images/error/', r.text)
+        if len(err_cnt) >= 8:  # 10 actually
+            logger.add('サーバーは課程「%s」の選択を拒否します。' %
+                       clz.class_name)
+            return False
+        logger.add('課程「%s」の選択が成功しました。' % clz.class_name)
+        r.selected = True
+        return True
     pass
 
 
@@ -472,17 +525,29 @@ def classes_monitor(token_filename, db_filename):
                      ' | Updated %.2fs ago' % (tm - clz.update_time))
                 print(s)
             print('-' * 79)
-            logger.output(18 - len(classes))
-            time.sleep(0.02)
+            logger.output(30 - len(classes))
+            time.sleep(0.1)
         return
 
     def update_worker(classes, session):
         while logger.alive():
-            time.sleep(2.5)
             try:
+                time.sleep(10.0)
                 session.update_data(classes)
+                # Check if class available
+                for cid in classes:
+                    clz = classes[cid]
+                    if clz.selected:
+                        continue
+                    if clz.cnt_selected >= clz.cnt_chosen:
+                        continue
+                    logger.add('課程「%s」は選択することが可能である。' %
+                               clz.class_name)
+                    session.select_class(clz)
             except Exception as err:
                 logger.traceback(sys.exc_info())
+            except BaseException:
+                logger.kill()
         return
 
     def save_worker(db, db_filename):
@@ -493,6 +558,8 @@ def classes_monitor(token_filename, db_filename):
                 logger.add('新しい変更がテーブルに保存されました。')
             except Exception as err:
                 logger.traceback(sys.exc_info())
+            except BaseException:
+                logger.kill()
         return
     # Define threads
     print_thread = threading.Thread(target=print_worker, args=[classes])
@@ -505,10 +572,12 @@ def classes_monitor(token_filename, db_filename):
     save_thread.start()
     # Sleep for a while or listen for keyboard interrupt
     try:
-        time.sleep(20)
+        while logger.is_alive():
+            time.sleep(0.1)
     except KeyboardInterrupt:
         logger.kill()
     # Join threads
+    logger.kill()
     print_thread.join()
     update_thread.join()
     save_thread.join()
@@ -518,6 +587,11 @@ def classes_monitor(token_filename, db_filename):
 class TestElectiveMethods(unittest.TestCase):
     def test_download(self):
         classes_monitor('tokens.json', 't.xlsx')
+        # session, clz_list = login_json('tokens.json')
+        # lvl, data = session.get_page({'method': 'listJxb', 'kclb': '06'},
+        #                              parse=True)
+        # print(data)
+        # session.select_class(data[1])
     pass
 
 unittest.main()
