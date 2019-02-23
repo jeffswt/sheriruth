@@ -17,10 +17,10 @@ import urllib.parse
 
 
 consts = {
-    'version': '[Past] 3',
-    'request-delay': 0.5,
-    'refresh-rate': 2.0,
-    'save-rate': 7.0,
+    'version': '[Present] 7',
+    'request-delay': 0.3,
+    'refresh-rate': 1.8,
+    'save-rate': 6.0,
 }
 
 
