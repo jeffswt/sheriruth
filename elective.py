@@ -3,6 +3,7 @@ import base64
 import bs4
 import json
 import openpyxl
+import optparse
 import os
 import pickle
 import re
@@ -11,9 +12,16 @@ import sys
 import threading
 import time
 import traceback
-import unittest
 import urllib
 import urllib.parse
+
+
+consts = {
+    'version': '[Past] 3',
+    'request-delay': 0.5,
+    'refresh-rate': 2.0,
+    'save-rate': 7.0,
+}
 
 
 class ElectiveClass:
@@ -197,7 +205,6 @@ class WebSession:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
             'AppleWebKit/537.36 (KHTML, like Gecko) ' +
             'Chrome/72.0.3626.109 Safari/537.36')
-        self.request_delay = 0.5
         self.last_request_time = 0
         return
 
@@ -213,8 +220,10 @@ class WebSession:
     def __do(self, func, url, kwargs):
         # Ensure spider's speed is slow enough
         t = time.time()
-        if t < self.last_request_time + self.request_delay:
-            time.sleep(self.last_request_time + self.request_delay - t)
+        req_delay = consts['request-delay']
+        print(req_delay)
+        if t < self.last_request_time + req_delay:
+            time.sleep(self.last_request_time + req_delay - t)
         # Request
         r = func(
             url,
@@ -532,7 +541,7 @@ def classes_monitor(token_filename, db_filename):
     def update_worker(classes, session):
         while logger.alive():
             try:
-                time.sleep(10.0)
+                time.sleep(consts['refresh-rate'])
                 session.update_data(classes)
                 # Check if class available
                 for cid in classes:
@@ -552,7 +561,7 @@ def classes_monitor(token_filename, db_filename):
 
     def save_worker(db, db_filename):
         while logger.alive():
-            time.sleep(4.0)
+            time.sleep(consts['save-rate'])
             try:
                 db.save(db_filename)
                 logger.add('新しい変更がテーブルに保存されました。')
@@ -603,8 +612,8 @@ def update_class_database(token_filename, db_filename):
     try:
         db = ClassDatabase()
         session.get_data(db)
-        logger.add('課程がテーブルに保存されました。')
         db.save(db_filename)
+        logger.add('課程がテーブルに保存されました。')
     except KeyboardInterrupt:
         logger.kill()
     # Terminate
@@ -614,14 +623,66 @@ def update_class_database(token_filename, db_filename):
     return
 
 
-class TestElectiveMethods(unittest.TestCase):
-    def test_download(self):
-        classes_monitor('tokens.json', 't.xlsx')
-        # session, clz_list = login_json('tokens.json')
-        # lvl, data = session.get_page({'method': 'listJxb', 'kclb': '06'},
-        #                              parse=True)
-        # print(data)
-        # session.select_class(data[1])
-    pass
+def main():
+    opts = optparse.OptionParser(usage='sheriruth (-r|-s) [OPTIONS]',
+                                 version=consts['version'])
+    opts.add_option(
+        '-r', '--reload', dest='reload', action='store_true', default=False,
+        help='(Re)Load course database')
+    opts.add_option(
+        '-s', '--start', dest='start', action='store_true', default=False,
+        help='Begin procedure')
+    opts.add_option(
+        '-t', '--token-file', dest='token_fn', type='string',
+        default='token.json',
+        help='JSON file in which user information is stored')
+    opts.add_option(
+        '-d', '--database-file', dest='database_fn', type='string',
+        default='database.xlsx',
+        help='XLSX file in which course database is stored')
+    opts.add_option(
+        '--request-delay', dest='request_delay', type='float',
+        default=consts['request-delay'],
+        help='Minimum delay (%.1f) seconds between requests' %
+        consts['request-delay'])
+    opts.add_option(
+        '--refresh-rate', dest='refresh_rate', type='float',
+        default=consts['refresh-rate'],
+        help='Refresh course status every (%.1f) seconds' %
+        consts['refresh-rate'])
+    opts.add_option(
+        '--save-rate', dest='save_rate', type='float',
+        default=consts['save-rate'],
+        help='Update database every (%.1f) seconds' %
+        consts['save-rate'])
+    commands, args = opts.parse_args()
+    # Apply settings
+    consts['request-delay'] = commands.request_delay
+    consts['refresh-rate'] = commands.refresh_rate
+    consts['save-rate'] = commands.save_rate
+    # Check files
+    token_filename = commands.token_fn
+    db_filename = commands.database_fn
+    missing_files = False
+    for _ in {token_filename, db_filename}:
+        if _ == db_filename and commands.reload:
+            continue
+        if not os.path.exists(_):
+            print('sheriruth: error: %s: no such file or directory' % _)
+            missing_files = True
+    if missing_files:
+        print('sheriruth: fatal error: missing files')
+        print('procedure terminated.')
+    # Check mode
+    if commands.reload:
+        update_class_database(token_filename, db_filename)
+    if commands.start:
+        classes_monitor(token_filename, db_filename)
+    if not commands.reload and not commands.start:
+        print('sheriruth: fatal error: nothing to do')
+        print('sheriruth: info: try "-h" for help')
+        print('procedure terminated.')
+    return
 
-unittest.main()
+if __name__ == "__main__":
+    main()
