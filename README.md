@@ -46,11 +46,10 @@ Username and password are to be stored in `token.json` or any filename you want,
 {
     "username": "...",
     "password": "...",
-    ...,
+    "cookies": "...",
     "select": [
     	"...",
-    	"...",
-    	...,
+    	"..."
     ]
 }
 ```
