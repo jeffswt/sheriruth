@@ -463,14 +463,15 @@ class UserSession:
             logger.add('課程「%s」選択中に HTTP 錯誤が発生します。' %
                        r.class_name)
             return False
+        if '选课成功' in r.text:
+            logger.add('課程「%s」の選択が成功しました。' % clz.class_name)
+            r.selected = True
+            return True
         err_cnt = re.findall(r'/idc/images/error/', r.text)
-        if len(err_cnt) >= 8:  # 10 actually
-            logger.add('サーバーは課程「%s」の選択を拒否します。' %
-                       clz.class_name)
-            return False
-        logger.add('課程「%s」の選択が成功しました。' % clz.class_name)
-        r.selected = True
-        return True
+        # if len(err_cnt) >= 8:  # 10 actually
+        logger.add('サーバーは課程「%s」の選択を拒否します。' %
+                    clz.class_name)
+        return False
     pass
 
 
