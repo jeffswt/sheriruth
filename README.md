@@ -68,6 +68,8 @@ Sheriruth will look for courses (under the `select` wishlist) that are not yet "
 
 Information are shown live in the log window.
 
+Note that you **should not** change the `cookies` parameter in file `tokens.json`.
+
 ## Liability
 
 The author and maintainers hold no liability to the maintenance, behavior, stability, performance, robustness and potential consequences of this software, and strongly recommend users to keep a human backup behind this in terms of emergency situations. That is to say:

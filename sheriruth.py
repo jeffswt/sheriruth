@@ -221,7 +221,6 @@ class WebSession:
         # Ensure spider's speed is slow enough
         t = time.time()
         req_delay = consts['request-delay']
-        print(req_delay)
         if t < self.last_request_time + req_delay:
             time.sleep(self.last_request_time + req_delay - t)
         # Request
@@ -683,6 +682,7 @@ def main():
     if missing_files:
         print('sheriruth: fatal error: missing files')
         print('procedure terminated.')
+        return
     # Check mode
     if commands.reload:
         update_class_database(token_filename, db_filename)
